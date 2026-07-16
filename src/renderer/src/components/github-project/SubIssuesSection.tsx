@@ -69,6 +69,7 @@ export default function SubIssuesSection({
   const [state, setState] = useState<HierarchyState>({ status: 'loading' })
   const [addValue, setAddValue] = useState('')
   const [pendingAction, setPendingAction] = useState<number | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const requestIdRef = useRef(0)
 
   const load = useCallback(() => {
@@ -109,15 +110,23 @@ export default function SubIssuesSection({
       return
     }
     setPendingAction(parsed)
+    setActionError(null)
     mutateGitHub(
       'github.project.addSubIssue',
       () => window.api.gh.addSubIssue({ owner, repo, number, subIssueNumber: parsed }),
       { owner, repo, number, subIssueNumber: parsed },
       sourceSettings
     )
-      .then(() => {
-        setAddValue('')
-        load()
+      .then((res) => {
+        if (res.ok) {
+          setAddValue('')
+          load()
+        } else {
+          setActionError(res.error.message)
+        }
+      })
+      .catch((err: unknown) => {
+        setActionError(err instanceof Error ? err.message : 'Failed to add sub-issue.')
       })
       .finally(() => setPendingAction(null))
   }, [addValue, owner, repo, number, sourceSettings, load])
@@ -125,13 +134,23 @@ export default function SubIssuesSection({
   const handleRemove = useCallback(
     (subIssueNumber: number) => {
       setPendingAction(subIssueNumber)
+      setActionError(null)
       mutateGitHub(
         'github.project.removeSubIssue',
         () => window.api.gh.removeSubIssue({ owner, repo, number, subIssueNumber }),
         { owner, repo, number, subIssueNumber },
         sourceSettings
       )
-        .then(() => load())
+        .then((res) => {
+          if (res.ok) {
+            load()
+          } else {
+            setActionError(res.error.message)
+          }
+        })
+        .catch((err: unknown) => {
+          setActionError(err instanceof Error ? err.message : 'Failed to remove sub-issue.')
+        })
         .finally(() => setPendingAction(null))
     },
     [owner, repo, number, sourceSettings, load]
@@ -153,13 +172,23 @@ export default function SubIssuesSection({
           ? { owner, repo, number, subIssueNumber, beforeNumber: targetSibling.number }
           : { owner, repo, number, subIssueNumber, afterNumber: targetSibling.number }
       setPendingAction(subIssueNumber)
+      setActionError(null)
       mutateGitHub(
         'github.project.reprioritizeSubIssue',
         () => window.api.gh.reprioritizeSubIssue(args),
         args,
         sourceSettings
       )
-        .then(() => load())
+        .then((res) => {
+          if (res.ok) {
+            load()
+          } else {
+            setActionError(res.error.message)
+          }
+        })
+        .catch((err: unknown) => {
+          setActionError(err instanceof Error ? err.message : 'Failed to reorder sub-issue.')
+        })
         .finally(() => setPendingAction(null))
     },
     [owner, repo, number, sourceSettings, load]
@@ -285,6 +314,8 @@ export default function SubIssuesSection({
           ))}
         </div>
       ) : null}
+
+      {actionError ? <div className="text-destructive">{actionError}</div> : null}
 
       {editable ? (
         <div className="flex items-center gap-1.5">

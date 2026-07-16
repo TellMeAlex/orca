@@ -41,7 +41,7 @@ describe('resolveWidth', () => {
     // resolveWidth's floor check must use minColumnWidthFor, not the flat
     // MIN_COLUMN_WIDTH constant.
     const width = resolveWidth(f, { [f.id]: 70 })
-    expect(width).not.toBe(70)
+    expect(width).toBeGreaterThanOrEqual(minColumnWidthFor(f))
   })
 })
 

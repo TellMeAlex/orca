@@ -170,7 +170,7 @@ export default function ProjectCell({
         <span aria-hidden="true">{prefix}</span>
         {visible.map((i) => (
           <a
-            key={i.number}
+            key={i.url}
             href={i.url}
             title={i.title}
             onClick={(e) => {

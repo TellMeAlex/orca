@@ -39,18 +39,14 @@ type ApiMocks = {
 function stubApi(hierarchyResult: GetIssueHierarchyResult): ApiMocks {
   const mocks: ApiMocks = {
     getIssueHierarchy: vi.fn().mockResolvedValue(hierarchyResult),
-    addSubIssue: vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        subIssuesSummary: { total: 0, completed: 0, percentCompleted: 0 }
-      }),
-    removeSubIssue: vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        subIssuesSummary: { total: 0, completed: 0, percentCompleted: 0 }
-      }),
+    addSubIssue: vi.fn().mockResolvedValue({
+      ok: true,
+      subIssuesSummary: { total: 0, completed: 0, percentCompleted: 0 }
+    }),
+    removeSubIssue: vi.fn().mockResolvedValue({
+      ok: true,
+      subIssuesSummary: { total: 0, completed: 0, percentCompleted: 0 }
+    }),
     reprioritizeSubIssue: vi.fn().mockResolvedValue({ ok: true }),
     openUrl: vi.fn().mockResolvedValue(undefined)
   }
@@ -124,8 +120,8 @@ describe('SubIssuesSection', () => {
     stubApi({
       ok: true,
       parent: null,
-      subIssuesSummary: null,
-      subIssues: [],
+      subIssuesSummary: { total: 1, completed: 0, percentCompleted: 0 },
+      subIssues: [makeChild({ number: 38 })],
       hasMoreChildren: false
     })
     render(
@@ -137,9 +133,11 @@ describe('SubIssuesSection', () => {
         sourceSettings={null}
       />
     )
-    await waitFor(() => {
-      expect(screen.queryByText(/Parent/i)).not.toBeInTheDocument()
-    })
+    // Why: wait for the loaded state first — the "Parent" text is also
+    // absent during the loading state, so asserting its absence before the
+    // async fetch resolves would pass trivially regardless of this branch.
+    await screen.findByRole('link', { name: /#38/ })
+    expect(screen.queryByText(/Parent/i)).not.toBeInTheDocument()
   })
 
   it('renders each direct sub-issue with number, title, and a roll-up progress summary', async () => {
@@ -289,5 +287,71 @@ describe('SubIssuesSection', () => {
       />
     )
     expect(await screen.findByText('Issue not found.')).toBeInTheDocument()
+  })
+
+  it('shows an error message when addSubIssue resolves ok:false, without clearing the input', async () => {
+    const mocks = stubApi({
+      ok: true,
+      parent: null,
+      subIssuesSummary: null,
+      subIssues: [],
+      hasMoreChildren: false
+    })
+    mocks.addSubIssue.mockResolvedValueOnce({
+      ok: false,
+      error: { type: 'validation', message: 'Issue #44 is already a sub-issue.' }
+    })
+    render(
+      <SubIssuesSection owner="acme" repo="widgets" number={37} editable sourceSettings={null} />
+    )
+    const input = await screen.findByPlaceholderText(/issue number/i)
+    fireEvent.change(input, { target: { value: '44' } })
+    fireEvent.click(screen.getByRole('button', { name: /add sub-issue/i }))
+    expect(await screen.findByText('Issue #44 is already a sub-issue.')).toBeInTheDocument()
+    expect(input).toHaveValue('44')
+    // Why: proves the failure branch skipped load() rather than silently reloading.
+    expect(mocks.getIssueHierarchy).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows an error message when removeSubIssue resolves ok:false', async () => {
+    const mocks = stubApi({
+      ok: true,
+      parent: null,
+      subIssuesSummary: { total: 1, completed: 0, percentCompleted: 0 },
+      subIssues: [makeChild({ number: 38 })],
+      hasMoreChildren: false
+    })
+    mocks.removeSubIssue.mockResolvedValueOnce({
+      ok: false,
+      error: { type: 'network_error', message: 'Network timeout removing #38.' }
+    })
+    render(
+      <SubIssuesSection owner="acme" repo="widgets" number={37} editable sourceSettings={null} />
+    )
+    const removeButton = await screen.findByRole('button', { name: /remove #38/i })
+    fireEvent.click(removeButton)
+    expect(await screen.findByText('Network timeout removing #38.')).toBeInTheDocument()
+    expect(mocks.getIssueHierarchy).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows an error message when reprioritizeSubIssue resolves ok:false', async () => {
+    const mocks = stubApi({
+      ok: true,
+      parent: null,
+      subIssuesSummary: { total: 2, completed: 0, percentCompleted: 0 },
+      subIssues: [makeChild({ number: 38 }), makeChild({ number: 39 })],
+      hasMoreChildren: false
+    })
+    mocks.reprioritizeSubIssue.mockResolvedValueOnce({
+      ok: false,
+      error: { type: 'rate_limited', message: 'Rate limit exceeded, try again later.' }
+    })
+    render(
+      <SubIssuesSection owner="acme" repo="widgets" number={37} editable sourceSettings={null} />
+    )
+    const moveDown = await screen.findByRole('button', { name: /move #38 down/i })
+    fireEvent.click(moveDown)
+    expect(await screen.findByText('Rate limit exceeded, try again later.')).toBeInTheDocument()
+    expect(mocks.getIssueHierarchy).toHaveBeenCalledTimes(1)
   })
 })

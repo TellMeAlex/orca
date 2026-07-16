@@ -141,6 +141,22 @@ describe('ProjectCell — Tracks (Issue.trackedIssues)', () => {
   })
 })
 
+describe('ProjectCell — Tracked by (Issue.trackedInIssues)', () => {
+  it('renders trackedInIssues with a "←" prefix', () => {
+    const field = makeField('F', 'TRACKED_BY')
+    const row = makeRow({
+      content: makeContent({
+        trackedInIssues: [
+          { number: 9, title: 'epic', url: 'https://github.com/acme/repo/issues/9' }
+        ]
+      })
+    })
+    render(<ProjectCell row={row} field={field} editable={false} sourceSettings={null} />)
+    expect(screen.getByRole('link', { name: '#9' })).toBeInTheDocument()
+    expect(screen.getByText('←')).toBeInTheDocument()
+  })
+})
+
 describe('ProjectCell — Parent issue link', () => {
   it('renders a clickable <a> with the parent URL and the issue number visible', () => {
     const field = makeField('F', 'PARENT_ISSUE')

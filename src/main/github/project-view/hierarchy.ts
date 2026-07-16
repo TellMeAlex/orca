@@ -96,18 +96,19 @@ export function normalizeHierarchyResponse(
     return null
   }
   const childNodesRaw = raw.subIssues?.nodes ?? []
-  const subIssues = childNodesRaw
-    .map((n) => normalizeChildNode(n))
-    .filter((n): n is GitHubIssueHierarchyNode => n !== null)
+  // Why: keep raw/normalized pairs aligned so a dropped child can't shift later indices.
+  const normalizedPairs = childNodesRaw
+    .map((rawChild) => ({ rawChild, normalized: normalizeChildNode(rawChild) }))
+    .filter(
+      (p): p is { rawChild: RawHierarchyChildNode; normalized: GitHubIssueHierarchyNode } =>
+        p.normalized !== null
+    )
+  const subIssues = normalizedPairs.map((p) => p.normalized)
 
-  const childrenTotalCount = raw.subIssues?.totalCount ?? subIssues.length
-  const topLevelMore = childrenTotalCount > subIssues.length
-  const grandchildMore = subIssues.some((child, i) => {
-    const rawChild = childNodesRaw[i]
-    const rawGrandchildTotal =
-      rawChild && typeof rawChild === 'object' && 'subIssues' in rawChild
-        ? (rawChild.subIssues?.totalCount ?? child.subIssues.length)
-        : child.subIssues.length
+  const childrenTotalCount = raw.subIssues?.totalCount ?? childNodesRaw.length
+  const topLevelMore = childrenTotalCount > childNodesRaw.length
+  const grandchildMore = normalizedPairs.some(({ rawChild, normalized: child }) => {
+    const rawGrandchildTotal = rawChild?.subIssues?.totalCount ?? child.subIssues.length
     return rawGrandchildTotal > child.subIssues.length
   })
 
@@ -193,11 +194,10 @@ export async function getIssueHierarchy(
 // Why: cheap client-side guards before spending a GraphQL round trip —
 // self-reference and slug shape are checkable without any fetch. GitHub's
 // own hard limits (100 children/issue, 8 levels deep) are NOT pre-validated
-// here beyond the children-count check in addSubIssueBySlug (see
-// hierarchy.ts's write-path functions) — depth-limit violations are relayed
-// via GitHub's own error message through the existing classifyProjectError
-// path, not re-validated client-side (documented limitation, see plan §Open
-// questions).
+// anywhere client-side — both limit violations are relayed via GitHub's own
+// error message through the existing classifyProjectError path in
+// hierarchy-mutations.ts's write-path functions (documented limitation,
+// see plan §Open questions).
 
 type SlugArgs = { owner: unknown; repo: unknown; number: unknown; subIssueNumber: unknown }
 

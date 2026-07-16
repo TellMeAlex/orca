@@ -615,6 +615,12 @@ fragment FieldConfig on ProjectV2FieldConfiguration {
 // Why: Phase 1b — sub-issue progress, tracked issues, and tracked-by issues
 // are read from the linked Issue, not from the field-value union (the union
 // has no corresponding members as of 2026-07-14).
+// TODO(github-projects-hierarchy): only `parent` has a schema-unsupported
+// retry-without path (see parentFieldRetriedByOwner below). subIssuesSummary/
+// trackedIssues/trackedInIssues have none, so an older GHES schema missing
+// any of them fails the whole item fetch instead of degrading. Flagged by
+// review; deferred as its own Phase 1b follow-up (shared retry machinery
+// for all four fields), not bundled into the Phase 3 hierarchy-tree PR.
 export function itemContentSelection(includeParent: boolean): string {
   const parentFrag = includeParent ? 'parent { number title url }' : ''
   return `
